@@ -234,6 +234,61 @@ class FaceKeypointsPreprocessor:
 
         return (face_kps,)
 
+class FaceKeypointsFromOpenpose:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "pose_keypoint" : ("POSE_KEYPOINT",  ),
+            },
+            "optional": {
+                "width": ("INT", {"default": None, "forceInput": True}),
+                "height": ("INT", {"default": None, "forceInput": True}),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "preprocess_image"
+    CATEGORY = "InstantID"
+
+    @staticmethod
+    def extract_face(pose_keypoint):
+        keypoints = []
+        # openpose -> facial landmarks: 
+        # left eye pupil, right eye pupil, nose tip, left mouth outer corner, right mouth outer corner
+        indices = [68, 69, 30, 48, 54]
+        
+        kps = pose_keypoint["people"][0]["face_keypoints_2d"]
+        
+        for i in indices:
+            x = kps[i*3]
+            y = kps[i*3 + 1]
+            
+            keypoints.append([x, y])
+        
+        return np.array(keypoints).astype(np.float32)
+
+    def preprocess_image(self, pose_keypoint, width=None, height=None):
+        pose_keypoint = pose_keypoint[0]
+        canvas_width = pose_keypoint['canvas_width']
+        canvas_height = pose_keypoint['canvas_height']
+        
+        if not (width or height):
+            width = int(canvas_width)
+            height = int(canvas_height)
+            scale = 1.0
+        else:
+            scale = min(width/canvas_width, height/canvas_height)
+        
+        face_kps_array = self.extract_face(pose_keypoint)*scale
+        
+        canvas = torch.zeros((height,width,3))
+        canvas = tensor_to_image(canvas)
+        
+        face_kps = draw_kps(canvas, face_kps_array)
+        face_kps = T.ToTensor()(face_kps).permute([1,2,0]).unsqueeze(0)
+        
+        return (face_kps,)
+
 def add_noise(image, factor):
     seed = int(torch.sum(image).item()) % 1000000007
     torch.manual_seed(seed)
@@ -610,6 +665,7 @@ NODE_CLASS_MAPPINGS = {
     "ApplyInstantID": ApplyInstantID,
     "ApplyInstantIDAdvanced": ApplyInstantIDAdvanced,
     "FaceKeypointsPreprocessor": FaceKeypointsPreprocessor,
+    "FaceKeypointsFromOpenpose": FaceKeypointsFromOpenpose,
 
     "InstantIDAttentionPatch": InstantIDAttentionPatch,
     "ApplyInstantIDControlNet": ApplyInstantIDControlNet,
@@ -621,6 +677,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ApplyInstantID": "Apply InstantID",
     "ApplyInstantIDAdvanced": "Apply InstantID Advanced",
     "FaceKeypointsPreprocessor": "Face Keypoints Preprocessor",
+    "FaceKeypointsFromOpenpose": "Face Keypoints From Openpose"
 
     "InstantIDAttentionPatch": "InstantID Patch Attention",
     "ApplyInstantIDControlNet": "InstantID Apply ControlNet",
