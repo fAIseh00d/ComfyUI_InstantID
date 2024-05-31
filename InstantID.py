@@ -239,7 +239,7 @@ class FaceKeypointsFromOpenpose:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "pose_keypoint" : ("POSE_KEYPOINT",  ),
+                "pose_keypoints" : ("POSE_KEYPOINT",  ),
             },
             "optional": {
                 "width": ("INT", {"default": None, "forceInput": True}),
@@ -267,27 +267,27 @@ class FaceKeypointsFromOpenpose:
         
         return np.array(keypoints).astype(np.float32)
 
-    def preprocess_image(self, pose_keypoint, width=None, height=None):
-        pose_keypoint = pose_keypoint[0]
-        canvas_width = pose_keypoint['canvas_width']
-        canvas_height = pose_keypoint['canvas_height']
+    def preprocess_image(self, pose_keypoints, width=None, height=None):
+        out = []
         
-        if not (width or height):
-            width = int(canvas_width)
-            height = int(canvas_height)
-            scale = 1.0
-        else:
-            scale = min(width/canvas_width, height/canvas_height)
+        for pose_keypoint in pose_keypoints:
+            canvas_width = pose_keypoint['canvas_width']
+            canvas_height = pose_keypoint['canvas_height']
+            
+            if not (width or height):
+                width = int(canvas_width)
+                height = int(canvas_height)
+                scale = 1.0
+            else:
+                scale = min(width/canvas_width, height/canvas_height)
+            
+            face_kps_array = self.extract_face(pose_keypoint)*scale
+            canvas = tensor_to_image(torch.zeros((height,width,3)))
+            out.append(draw_kps(canvas, face_kps_array))
         
-        face_kps_array = self.extract_face(pose_keypoint)*scale
+        out = torch.stack(T.ToTensor()(out), dim=0).permute([0,2,3,1])
         
-        canvas = torch.zeros((height,width,3))
-        canvas = tensor_to_image(canvas)
-        
-        face_kps = draw_kps(canvas, face_kps_array)
-        face_kps = T.ToTensor()(face_kps).permute([1,2,0]).unsqueeze(0)
-        
-        return (face_kps,)
+        return (out,)
 
 def add_noise(image, factor):
     seed = int(torch.sum(image).item()) % 1000000007
@@ -677,7 +677,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ApplyInstantID": "Apply InstantID",
     "ApplyInstantIDAdvanced": "Apply InstantID Advanced",
     "FaceKeypointsPreprocessor": "Face Keypoints Preprocessor",
-    "FaceKeypointsFromOpenpose": "Face Keypoints From Openpose"
+    "FaceKeypointsFromOpenpose": "Face Keypoints From Openpose",
 
     "InstantIDAttentionPatch": "InstantID Patch Attention",
     "ApplyInstantIDControlNet": "InstantID Apply ControlNet",
