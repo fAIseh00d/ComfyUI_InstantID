@@ -250,8 +250,8 @@ class FaceKeypointsFromOpenpose:
                 "pose_keypoints" : ("POSE_KEYPOINT",  ),
             },
             "optional": {
-                "width": ("INT", {"default": None, "forceInput": True}),
-                "height": ("INT", {"default": None, "forceInput": True}),
+                "width": ("INT", {"forceInput": True}, ),
+                "height": ("INT", {"forceInput": True}, ),
             },
         }
     RETURN_TYPES = ("IMAGE",)
